@@ -27,6 +27,7 @@ namespace Blastwave
         float currentPosImpulse;        //in kPa*s
 
         float blastWaveVel;             //in m/s
+        float maxOverPres;              //in kPa
 
         Dictionary<Blastwave, float> potentialCoalesenceCandidates;     //Explosion object w/ distance to it in m
 
@@ -57,7 +58,7 @@ namespace Blastwave
             ready = true;
         }
 
-        public static void CreateBlastwave(float yield, Vector3d worldLocation)
+        public static void CreateBlastwave(float yield, float maxOverPres, Vector3d worldLocation)
         {
             if(!ready)
             {
@@ -69,10 +70,10 @@ namespace Blastwave
             else
                 newExplosion = new Blastwave();
 
-            newExplosion.SetConditionsAndInitiate(yield, worldLocation);
+            newExplosion.SetConditionsAndInitiate(yield, maxOverPres, worldLocation);
         }
 
-        void SetConditionsAndInitiate(float yield, Vector3d worldLocation)
+        void SetConditionsAndInitiate(float yield, float maxOverPres, Vector3d worldLocation)
         {
             this.yield = yield;
             this.equivalentTNTMass = this.yield * JOULE_TO_KG_TNT_CONVERSION;
@@ -86,13 +87,15 @@ namespace Blastwave
             if (atmPres <= 0 || ambientSoundSpeed <= 0)
                 return;
 
-            this.currentPeakPressure = peakOverPressure;
+            this.maxOverPres = maxOverPres;
+
+            this.currentPeakPressure = (maxOverPres + 1f) * (float)atmPres;
             this.currentPosImpulse = peakPosImpulse;
             this.currentBlastRadius = 0;
             this.blastWaveVel = 0;
 
-            this.prevPeakPressure = peakOverPressure;
-            this.prevPosImpulse = peakPosImpulse;
+            this.prevPeakPressure = this.currentPeakPressure;
+            this.prevPosImpulse = this.currentPosImpulse;
             this.prevBlastRadius = 0;
 
             for (int i = 0; i < activeBlastwaveObjects.Count; i++)
@@ -225,7 +228,7 @@ namespace Blastwave
 
         bool CheckSimCompleted()
         {
-            return yield <= 0.001f || currentBlastRadius > 25000f || blastWaveVel < ambientSoundSpeed * 1.05f;
+            return yield <= 0.001f || currentBlastRadius > 25000f || blastWaveVel < ambientSoundSpeed * 1.001f;
         }
 
         void CalculateOverpressureAndImpulse()
@@ -235,8 +238,12 @@ namespace Blastwave
             {
                 Debug.Log("scaledDist NaN! Yield: " + equivalentTNTMass + " currentBlastRad " + currentBlastRadius);
             }
-            currentPeakPressure = (overPressureCurve.Evaluate(currentScaledDistance) + 1f) * (float)atmPres;
+            currentPeakPressure = (overPressureCurve.Evaluate(currentScaledDistance)) * (float)atmPres;
             currentPosImpulse = posImpulseCurve.Evaluate(currentScaledDistance) * (float)atmPres;
+
+            if(currentPeakPressure > maxOverPres)
+                currentPeakPressure = maxOverPres;
+            currentPeakPressure += (float)atmPres;
         }
 
         float CalculateBlastWaveVel()
@@ -262,18 +269,18 @@ namespace Blastwave
 
                 if (v.situation == Vessel.Situations.LANDED)
                 {
-                    v.vesselRanges.landed.pack = dist * 5f;
-                    v.vesselRanges.landed.unpack = dist * 1.5f;
+                    v.vesselRanges.landed.pack = Math.Max(dist * 2f, v.vesselRanges.landed.pack);
+                    v.vesselRanges.landed.unpack = Math.Max(dist * 1.5f, v.vesselRanges.landed.unpack);
                 }
                 if (v.situation == Vessel.Situations.PRELAUNCH)
                 {
-                    v.vesselRanges.prelaunch.pack = dist * 5f;
-                    v.vesselRanges.prelaunch.unpack = dist * 1.5f;
+                    v.vesselRanges.prelaunch.pack = Math.Max(dist * 2f, v.vesselRanges.prelaunch.pack);
+                    v.vesselRanges.prelaunch.unpack = Math.Max(dist * 1.5f, v.vesselRanges.prelaunch.unpack);
                 }
                 if (v.situation == Vessel.Situations.SPLASHED)
                 {
-                    v.vesselRanges.splashed.pack = dist * 5f;
-                    v.vesselRanges.splashed.unpack = dist * 1.5f;
+                    v.vesselRanges.splashed.pack = Math.Max(dist * 2f, v.vesselRanges.splashed.pack);
+                    v.vesselRanges.splashed.unpack = Math.Max(dist * 1.5f, v.vesselRanges.splashed.unpack);
                 }
 
                 CalculateDamageAndForcesOnVessel(v);
@@ -321,7 +328,7 @@ namespace Blastwave
                     Debug.Log("NaN in blastwave; staticPres: " + atmPres + " blastVel: " + blastWaveVel + "\noverPresApplied: " + overpressureApplied + " impulseApplied: " + impulseApplied + "\nyield: " + equivalentTNTMass + " invCubeRootYield: " + equivTNTMassInvCubeRoot);
                     return;
                 }
-                //Debug.Log("Overpressure: " + overpressureApplied + " impulse: " + impulseApplied + " impulse: " + impulse);
+                Debug.Log("Overpressure: " + overpressureApplied + " impulse: " + impulseApplied + " impulse: " + impulse);
 
                 if(!BlastwaveIsoDamageModel.Instance.CalculateDamage(p, impulseApplied, overpressureApplied))
                     p.Rigidbody.AddForce(impulse, ForceMode.Impulse);

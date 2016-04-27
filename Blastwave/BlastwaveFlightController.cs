@@ -49,14 +49,14 @@ namespace Blastwave
                 yield *= 46;            //yield in MJ
                 yield *= 1000000f;      //convert to joules
 
-                yield *= 0.15f;      //assume only 15% is converted to blast
+                //yield *= 0.15f;      //assume only 15% is converted to blast
 
 
 
                 if (yield > 0.01f && p.staticPressureAtm > 0)
                 {
                     Debug.Log("Explosion created with yield of " + yield + "J");
-                    Blastwave.CreateBlastwave(yield, p.partTransform.position);
+                    Blastwave.CreateBlastwave(yield, 1310f, p.partTransform.position);
                 }
             }
         }

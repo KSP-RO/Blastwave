@@ -83,11 +83,12 @@ namespace Blastwave
                     if (partExplodeValue > damageRNG.NextDouble())
                     {
                         p.explode();
+                        return true;
                         //Debug.Log("Part " + p.partInfo.title + " destroyed by a blastwave");
                     }
                 }
             }
-            return true;
+            return false;
         }
 
         public void CalculateDamage(DestructibleBuilding b, float impulse, float overPressure)
