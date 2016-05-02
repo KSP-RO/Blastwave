@@ -28,6 +28,7 @@ namespace Blastwave
 
         float blastWaveVel;             //in m/s
         float maxOverPres;              //in kPa
+        float impulseFactor;
 
         Dictionary<Blastwave, float> potentialCoalesenceCandidates;     //Explosion object w/ distance to it in m
 
@@ -58,7 +59,7 @@ namespace Blastwave
             ready = true;
         }
 
-        public static void CreateBlastwave(float yield, float maxOverPres, Vector3d worldLocation)
+        public static void CreateBlastwave(float yield, float maxOverPres, float impulseFactor, Vector3d worldLocation)
         {
             if(!ready)
             {
@@ -70,10 +71,10 @@ namespace Blastwave
             else
                 newExplosion = new Blastwave();
 
-            newExplosion.SetConditionsAndInitiate(yield, maxOverPres, worldLocation);
+            newExplosion.SetConditionsAndInitiate(yield, maxOverPres, impulseFactor, worldLocation);
         }
 
-        void SetConditionsAndInitiate(float yield, float maxOverPres, Vector3d worldLocation)
+        void SetConditionsAndInitiate(float yield, float maxOverPres, float impulseFactor, Vector3d worldLocation)
         {
             this.yield = yield;
             this.equivalentTNTMass = this.yield * JOULE_TO_KG_TNT_CONVERSION;
@@ -88,6 +89,7 @@ namespace Blastwave
                 return;
 
             this.maxOverPres = maxOverPres;
+            this.impulseFactor = impulseFactor;
 
             this.currentPeakPressure = (maxOverPres + 1f) * (float)atmPres;
             this.currentPosImpulse = peakPosImpulse;
@@ -239,11 +241,16 @@ namespace Blastwave
                 Debug.Log("scaledDist NaN! Yield: " + equivalentTNTMass + " currentBlastRad " + currentBlastRadius);
             }
             currentPeakPressure = (overPressureCurve.Evaluate(currentScaledDistance)) * (float)atmPres;
-            currentPosImpulse = posImpulseCurve.Evaluate(currentScaledDistance) * (float)atmPres;
+            currentPosImpulse = posImpulseCurve.Evaluate(currentScaledDistance);
 
-            if(currentPeakPressure > maxOverPres)
+            if (currentPeakPressure > maxOverPres)
+            {
+                float adjustmentFactor = maxOverPres / currentPeakPressure;
+                currentPosImpulse *= adjustmentFactor;
                 currentPeakPressure = maxOverPres;
+            }
             currentPeakPressure += (float)atmPres;
+            currentPosImpulse *= impulseFactor * (float)atmPres;
         }
 
         float CalculateBlastWaveVel()
@@ -319,19 +326,21 @@ namespace Blastwave
 
                 float overpressureApplied = peakPressureDiff * (dist - prevBlastRadius) / radiusDiff + prevPeakPressure - (float)atmPres;
                 float impulseApplied = impulseDiff * (dist - prevBlastRadius) / radiusDiff + prevPosImpulse;
+                //Debug.Log("Overpressure: " + overpressureApplied + " impulse: " + impulseApplied + " impulse: " + impulse);
 
-                float projBlastArea = p.DragCubes.GetCubeAreaDir(p.partTransform.InverseTransformDirection(directionVector));
-                Vector3 impulse = projBlastArea * impulseApplied * directionVector;
-
-                if (float.IsNaN(impulse.sqrMagnitude))
+                if (!BlastwaveIsoDamageModel.Instance.CalculateDamage(p, impulseApplied, overpressureApplied))
                 {
-                    Debug.Log("NaN in blastwave; staticPres: " + atmPres + " blastVel: " + blastWaveVel + "\noverPresApplied: " + overpressureApplied + " impulseApplied: " + impulseApplied + "\nyield: " + equivalentTNTMass + " invCubeRootYield: " + equivTNTMassInvCubeRoot);
-                    return;
-                }
-                Debug.Log("Overpressure: " + overpressureApplied + " impulse: " + impulseApplied + " impulse: " + impulse);
+                    float projBlastArea = p.DragCubes.GetCubeAreaDir(p.partTransform.InverseTransformDirection(directionVector));
+                    Vector3 impulse = projBlastArea * impulseApplied * directionVector;
 
-                if(!BlastwaveIsoDamageModel.Instance.CalculateDamage(p, impulseApplied, overpressureApplied))
+                    if (float.IsNaN(impulse.sqrMagnitude))
+                    {
+                        Debug.Log("NaN in blastwave; staticPres: " + atmPres + " blastVel: " + blastWaveVel + "\noverPresApplied: " + overpressureApplied + " impulseApplied: " + impulseApplied + "\nyield: " + equivalentTNTMass + " invCubeRootYield: " + equivTNTMassInvCubeRoot);
+                        return;
+                    }
+
                     p.Rigidbody.AddForce(impulse, ForceMode.Impulse);
+                }
             }
         }
 

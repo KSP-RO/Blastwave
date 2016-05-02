@@ -9,13 +9,13 @@ namespace Blastwave
         const float NO_DAMAGE_NORMALIZED_IMPULSE = 0.0689476f;          //kPa * s
         const float NO_DAMAGE_NORMALIZED_OVERPRES = 5.5f;               //kPa
 
-        const float TOTAL_DESTRUCTION_NORMALIZED_IMPULSE = 0.4826333f;  //kPa * s
-        const float TOTAL_DESTRUCTION_NORMALIZED_OVERPRES = 27.579f;    //kPa
+        const float TOTAL_DESTRUCTION_NORMALIZED_IMPULSE = 2.5f;  //kPa * s
+        const float TOTAL_DESTRUCTION_NORMALIZED_OVERPRES = 150f;    //kPa
         const float TOTAL_DESTRUCTION_DAMAGE_LEVEL = (TOTAL_DESTRUCTION_NORMALIZED_IMPULSE - NO_DAMAGE_NORMALIZED_IMPULSE) * (TOTAL_DESTRUCTION_NORMALIZED_OVERPRES - NO_DAMAGE_NORMALIZED_OVERPRES);
         const float TOTAL_DESTRUCTION_DAMAGE_LEVEL_INV = 1 / TOTAL_DESTRUCTION_DAMAGE_LEVEL;
 
-        const float CRASH_TOLERANCE_SCALE_FACTOR = 0.1f;
-        const float BUILDING_DAMAGE_SCALE_FACTOR = 0.25f;
+        const float CRASH_TOLERANCE_SCALE_FACTOR = 2f;
+        const float BUILDING_DAMAGE_SCALE_FACTOR = 0.01f;
 
         static BlastwaveIsoDamageModel instance;
         public static BlastwaveIsoDamageModel Instance
@@ -42,12 +42,14 @@ namespace Blastwave
 
             float damageFactor = impulseOffset * overPresOffset * TOTAL_DESTRUCTION_DAMAGE_LEVEL_INV / (scaling);
 
+            Debug.Log("Part " + p.partInfo.title + " damageFactor " + damageFactor);
+
             if (damageFactor < 0)
                 return false;
             else if (damageFactor > 1)
             {
                 //Debug.Log("Part " + p.partInfo.title + " destroyed by a blastwave");
-                p.explode();
+                p.skinTemperature = p.skinMaxTemp + 50;
                 return true;
             }
             if(damageFactor < 0.4f)
@@ -82,7 +84,7 @@ namespace Blastwave
 
                     if (partExplodeValue > damageRNG.NextDouble())
                     {
-                        p.explode();
+                        p.skinTemperature = p.skinMaxTemp + 50;
                         return true;
                         //Debug.Log("Part " + p.partInfo.title + " destroyed by a blastwave");
                     }
@@ -101,13 +103,13 @@ namespace Blastwave
             float impulseOffset = impulse - (NO_DAMAGE_NORMALIZED_IMPULSE * scaling);
             float overPresOffset = overPressure - (NO_DAMAGE_NORMALIZED_OVERPRES * scaling);
 
-            float damageFactor = impulseOffset * overPresOffset * TOTAL_DESTRUCTION_DAMAGE_LEVEL_INV;
+            float damageFactor = impulseOffset * overPresOffset * TOTAL_DESTRUCTION_DAMAGE_LEVEL_INV / scaling;
 
             if (damageFactor < 0)
                 return;
             else
             {
-                b.AddDamage(impulseOffset * overPresOffset * 1000f);
+                b.AddDamage(impulseOffset * overPresOffset * 100f);
             }
         }
     }

@@ -15,6 +15,7 @@ namespace Blastwave
         }
 
         public HashSet<DestructibleBuilding> buildings;
+        public ExplosiveReactions explosiveHandler;
 
         void Awake()
         {
@@ -26,13 +27,17 @@ namespace Blastwave
         void Start()
         {
             Blastwave.Setup();
+
+            explosiveHandler = new ExplosiveReactions();
             GameEvents.onPartDestroyed.Add(CreateExplosion);
+            GameEvents.onPartUnpack.Add(SetExplosionPotential);
         }
 
         void FixedUpdate()
         {
             if (FlightGlobals.ready)
             {
+                explosiveHandler.UpdateFreeReactantsAndReactions();
                 Blastwave.SimulateActiveBlastwaves();
             }
         }
@@ -41,24 +46,13 @@ namespace Blastwave
         {
             if (FlightGlobals.ready)
             {
-                double resourceMass = 0;
-                for (int i = 0; i < p.Resources.Count; ++i)
-                    resourceMass += p.Resources[i].amount * p.Resources[i].info.density;
-
-                float yield = (float)resourceMass * 1000f;      //convert t into kg
-                yield *= 46;            //yield in MJ
-                yield *= 1000000f;      //convert to joules
-
-                //yield *= 0.15f;      //assume only 15% is converted to blast
-
-
-
-                if (yield > 0.01f && p.staticPressureAtm > 0)
-                {
-                    Debug.Log("Explosion created with yield of " + yield + "J");
-                    Blastwave.CreateBlastwave(yield, 1310f, p.partTransform.position);
-                }
+                explosiveHandler.CreateFreeReactantsFromPart(p);
             }
+        }
+
+        void SetExplosionPotential(Part p)
+        {
+            p.explosionPotential = 0;
         }
 
         void AddDestructibleBuilding(DestructibleBuilding b)
@@ -72,6 +66,8 @@ namespace Blastwave
         void OnDestroy()
         {
             GameEvents.onPartDestroyed.Remove(CreateExplosion);
+            GameEvents.onPartUnpack.Remove(SetExplosionPotential);
+
             DestructibleBuilding.OnLoaded.Remove(AddDestructibleBuilding);
         }
     }
